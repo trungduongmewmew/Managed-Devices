@@ -54,7 +54,7 @@ A modern, web-based application for managing IT network devices. This tool provi
     ```
 
 3.  **Access the application:**
-    Open your web browser and navigate to `http://localhost:3000`.
+    Open your web browser and navigate to `https://localhost`.
 
 4.  **Default Login:**
     - **Username**: `admin`
