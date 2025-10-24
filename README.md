@@ -43,8 +43,8 @@ A modern, web-based application for managing IT network devices. This tool provi
 
 1.  **Clone the repository:**
     ```sh
-    git clone https://github.com/trungduongmewmew/Managed Devices.git
-    cd Managed Devices
+    git clone https://github.com/trungduongmewmew/Managed-Devices.git
+    cd Managed-Devices
     ```
 
 2.  **Run the application with Docker Compose:**
