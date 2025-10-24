@@ -48,7 +48,7 @@
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         
-        const API_BASE_URL = `http://${window.location.hostname}:3000`;
+        const API_BASE_URL = `${window.location.origin}`;
         const TOKEN_KEY = 'currentUserToken_v4_jwt';
         let columns = [], deviceData = [], deviceTypes = [], users = [], utilityLinks = [];
         let typeChart, locationChart, ownerChart;

@@ -1,3 +1,5 @@
+const https = require('https');
+const fs = require('fs');
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -7,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 
 const app = express();
-const port = 3000;
+const port = 443;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 
 
@@ -148,4 +150,12 @@ app.put('/api/links/:id', isAdmin, async (req, res)=>{ const id=parseInt(req.par
 app.delete('/api/links/:id', isAdmin, async (req, res)=>{ const id=parseInt(req.params.id); try { await pool.query("DELETE FROM utility_links WHERE id = $1",[id]); await logAudit(req.user.username,'DELETE_LINK','link',id); res.status(204).send(); } catch (e) { res.status(500).json({message:e.message}); } });
 
 
-app.listen(port, () => { console.log(`Server running at http://localhost:${port}`); initializeDatabase().catch(console.error); });
+const options = {
+  key: fs.readFileSync('certs/certificate_private_key.pem'),
+  cert: fs.readFileSync('certs/certificate.pem')
+};
+
+https.createServer(options, app).listen(port, () => {
+  console.log(`Server running at https://localhost:${port}`);
+  initializeDatabase().catch(console.error);
+});

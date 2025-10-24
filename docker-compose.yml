@@ -2,11 +2,12 @@ services:
   app:
     build: ./app
     ports:
-      - "3000:3000"
+      - "443:443"
     volumes:
       - ./app:/usr/src/app
       - /usr/src/app/node_modules
       - ./uploads:/usr/src/app/uploads 
+      - ./certs:/usr/src/app/certs
     environment:
       - DB_HOST=db
       - DB_USER=myuser
