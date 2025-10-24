@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trình Quản lý Thiết bị Mạng</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .chart-container { position: relative; width: 100%; max-width: 500px; margin-left: auto; margin-right: auto; height: 320px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; } }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .table-responsive { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .modal-backdrop { transition: opacity 0.3s ease; position: fixed; inset: 0; }
+        [data-role-required] { display: none; } button:disabled, .disabled { opacity: 0.5; cursor: not-allowed; }
+        .tab-btn { padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent; } .tab-btn.active { border-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+        .utility-link { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background-color: #fff; margin-bottom: 8px; }
+        .utility-link a { font-weight: 500; color: #3b82f6; text-decoration: none; word-break: break-all; } .utility-link a:hover { text-decoration: underline; } .utility-link-actions { display: flex; gap: 8px; }
+        #logical-display img, #physical-display img { cursor: zoom-in; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="login-screen" class="fixed inset-0 bg-gray-100 z-[9999] flex items-center justify-center p-4"><div class="w-full max-w-sm bg-white p-8 rounded-lg shadow-md"><h2 class="text-2xl font-bold text-center mb-6">Đăng nhập</h2><form id="login-form"><div class="mb-4"><label for="username" class="block text-sm font-medium mb-1">Tên đăng nhập</label><input type="text" id="username" class="w-full p-2 border rounded-md" required></div><div class="mb-6"><label for="password" class="block text-sm font-medium mb-1">Mật khẩu</label><input type="password" id="password" class="w-full p-2 border rounded-md" required></div><button type="submit" id="login-submit-btn" class="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">Đăng nhập</button><p id="login-error" class="text-red-500 text-sm mt-2 text-center"></p></form></div></div>
+
+    <div id="app-container" class="container mx-auto p-4 md:p-6 hidden"><header class="mb-6 flex justify-between items-center"><div><h1 class="text-3xl font-bold text-gray-900">Trình Quản lý Thiết bị Mạng</h1><p class="text-gray-600 mt-1">Dashboard tổng quan và chi tiết các thiết bị trong hệ thống.</p></div><div id="user-session" class="text-right"><p class="font-semibold" id="user-display"></p><div class="flex gap-x-3 justify-end"><button id="change-password-btn" class="text-sm text-gray-600 hover:underline">Đổi mật khẩu</button><button id="logout-btn" class="text-sm text-blue-600 hover:underline">Đăng xuất</button></div></div></header><main><section class="mb-6 flex flex-wrap gap-2"><button id="add-device-btn" data-role-required="admin,editor" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm">Thêm Thiết bị Mới</button><button id="show-topology-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition shadow-sm">Sơ đồ Mạng</button><button id="show-utilities-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">Tiện ích</button><button id="manage-columns-btn" data-role-required="admin" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition shadow-sm">Quản lý Cột</button><button id="manage-types-btn" data-role-required="admin" class="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 transition shadow-sm">Quản lý Loại T.Bị</button><button id="manage-users-btn" data-role-required="admin" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition shadow-sm">Quản lý Người dùng</button><button id="show-audit-btn" data-role-required="admin" class="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition shadow-sm">Nhật ký Hệ thống</button><button id="backup-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm">Sao lưu</button><button id="restore-btn" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition shadow-sm">Phục hồi</button><input type="file" id="restore-input" class="hidden" accept=".json"></section><section id="dashboard-view" class="mb-6"><div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><div class="bg-white p-4 rounded-lg shadow"><h3 class="font-semibold text-lg mb-2 text-center">Theo Loại</h3><div class="chart-container"><canvas id="typeChart"></canvas></div></div><div class="bg-white p-4 rounded-lg shadow"><h3 class="font-semibold text-lg mb-2 text-center">Theo Vị trí</h3><div class="chart-container"><canvas id="locationChart"></canvas></div></div><div class="bg-white p-4 rounded-lg shadow"><h3 class="font-semibold text-lg mb-2 text-center">Theo Người quản lý</h3><div class="chart-container"><canvas id="ownerChart"></canvas></div></div></div></section><section id="table-view"><div class="bg-white p-4 rounded-lg shadow"><div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-3"><div class="w-full md:w-1/3"><input type="text" id="search" placeholder="Tìm kiếm mọi thông tin..." class="w-full p-2 border rounded-md"></div><div class="w-full md:w-auto flex gap-3"><select id="typeFilter" class="p-2 border rounded-md"></select><select id="locationFilter" class="p-2 border rounded-md"></select></div></div><div class="table-responsive"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50" id="table-header"></thead><tbody id="device-table-body"></tbody></table><div id="no-results" class="text-center py-8 text-gray-500 hidden">Không tìm thấy thiết bị nào.</div></div></div></section></main></div>
+
+    <div id="device-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto"><form id="device-form" class="p-6"><h2 id="modal-title" class="text-2xl font-bold mb-4"></h2><input type="hidden" id="device-id"><div id="device-form-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div><div class="mt-6 flex justify-end gap-3"><button type="button" class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Hủy</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Lưu</button></div></form></div></div>
+    <div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center"><h3 class="text-lg font-semibold mb-2">Xác nhận Xóa</h3><p id="delete-modal-text" class="text-gray-600 mb-4"></p><div class="flex justify-center gap-4"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Hủy</button><button id="confirm-delete-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Xóa</button></div></div></div>
+    <div id="column-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-full overflow-y-auto"><div class="p-6"><h2 class="text-2xl font-bold mb-4">Quản lý Cột</h2><div id="column-list" class="space-y-2 mb-6 max-h-60 overflow-y-auto"></div><form id="add-column-form" class="mt-4 border-t pt-4"><h3 class="text-lg font-semibold mb-2">Thêm Cột Mới</h3><div class="flex flex-col sm:flex-row gap-3"><input type="text" id="new-column-name" placeholder="Tên cột hiển thị (vd: Số Serial)" class="flex-grow p-2 border rounded-md" required><input type="text" id="new-column-key" placeholder="Key (vd: serial_number)" class="flex-grow p-2 border rounded-md" required><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Thêm Cột</button></div></form><div class="mt-6 flex justify-end"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Đóng</button></div></div></div></div>
+    <div id="user-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-full overflow-y-auto"><div class="p-6"><h2 class="text-2xl font-bold mb-4">Quản lý Người dùng</h2><div class="table-responsive mb-6 max-h-60 overflow-y-auto"><table class="w-full text-sm"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th class="px-4 py-2 text-left">Tên đăng nhập</th><th class="px-4 py-2 text-left">Vai trò</th><th class="px-4 py-2 text-left">Hành động</th></tr></thead><tbody id="user-list"></tbody></table></div><form id="add-user-form" class="mt-6 border-t pt-4"><h3 class="text-lg font-semibold mb-2">Thêm Người dùng Mới</h3><div class="grid grid-cols-1 sm:grid-cols-4 gap-3"><input type="text" id="new-username" placeholder="Tên đăng nhập" class="p-2 border rounded-md sm:col-span-1" required><input type="password" id="new-password" placeholder="Mật khẩu" class="p-2 border rounded-md sm:col-span-1" required><select id="new-user-role" class="p-2 border rounded-md sm:col-span-1"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 sm:col-span-1">Thêm</button></div></form><div class="mt-6 flex justify-end"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Đóng</button></div></div></div></div>
+    <div id="restore-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center"><h3 class="text-lg font-semibold mb-2 text-red-600">Xác nhận Phục hồi</h3><p id="restore-modal-text" class="text-gray-600 mb-4">Bạn có chắc chắn muốn phục hồi dữ liệu từ file? <strong class="text-red-700">TOÀN BỘ dữ liệu hiện tại sẽ bị XÓA SẠCH</strong> và thay thế bằng dữ liệu trong file backup.</p><div class="flex justify-center gap-4"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Hủy</button><button id="confirm-restore-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Xác nhận Phục hồi</button></div></div></div>
+    <div id="type-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto"><div class="p-6"><h2 class="text-2xl font-bold mb-4">Quản lý Loại Thiết bị</h2><div class="table-responsive mb-6 max-h-60 overflow-y-auto"><table class="w-full text-sm"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th class="px-4 py-2 text-left">Tên loại</th><th class="px-4 py-2 text-left">Hành động</th></tr></thead><tbody id="type-list"></tbody></table></div><form id="add-type-form" class="mt-6 border-t pt-4"><h3 class="text-lg font-semibold mb-2">Thêm Loại Mới</h3><div class="flex gap-3"><input type="text" id="new-type-name" placeholder="Tên loại (vd: Switch Layer 3)" class="p-2 border rounded-md flex-grow" required><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Thêm</button></div></form><div class="mt-6 flex justify-end"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Đóng</button></div></div></div></div>
+    <div id="topology-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-full overflow-y-auto"><div class="p-6"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold">Sơ đồ Mạng</h2><button class="cancel-btn text-gray-500 hover:text-gray-800 text-2xl">&times;</button></div><div class="border-b border-gray-200 mb-4"><nav class="flex" id="topology-tab-nav"><button class="tab-btn active" data-tab="logical">Logical</button><button class="tab-btn" data-tab="physical">Physical</button></nav></div><div id="logical-tab" class="tab-content active"><div data-role-required="admin" class="mb-4 p-4 border rounded-md bg-gray-50"><h4 class="font-semibold mb-2">Tải lên Sơ đồ Logical (Admin)</h4><input type="file" id="logical-upload-input" class="mb-2" accept="image/*"><button id="logical-upload-btn" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700">Tải lên</button></div><div id="logical-display" class="w-full border rounded-md bg-gray-100 flex items-center justify-center" style="min-height: 500px;"><p id="logical-placeholder" class="text-center text-gray-500 p-10">Chưa có sơ đồ logical.</p></div></div><div id="physical-tab" class="tab-content"><div data-role-required="admin" class="mb-4 p-4 border rounded-md bg-gray-50"><h4 class="font-semibold mb-2">Tải lên Sơ đồ Physical (Admin)</h4><input type="file" id="physical-upload-input" class="mb-2" accept="image/*"><button id="physical-upload-btn" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700">Tải lên</button></div><div id="physical-display" class="w-full border rounded-md bg-gray-100 flex items-center justify-center" style="min-height: 500px;"><p id="physical-placeholder" class="text-center text-gray-500 p-10">Chưa có sơ đồ physical.</p></div></div></div></div></div>
+    <div id="audit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-full flex flex-col"><div class="p-6 border-b"><h2 class="text-2xl font-bold">Nhật ký Hệ thống (200 Dòng Mới Nhất)</h2></div><div class="p-6 overflow-y-auto flex-grow"><div class="table-responsive"><table class="w-full text-sm"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th class="px-4 py-2 text-left">Thời gian</th><th class="px-4 py-2 text-left">Người dùng</th><th class="px-4 py-2 text-left">Hành động</th><th class="px-4 py-2 text-left">Đối tượng</th><th class="px-4 py-2 text-left">ID Đối tượng</th></tr></thead><tbody id="audit-log-body"></tbody></table></div></div><div class="p-4 border-t flex justify-end"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Đóng</button></div></div></div>
+    <div id="utilities-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-full overflow-y-auto"><div class="p-6"><h2 class="text-2xl font-bold mb-4">Các Tiện ích & Liên kết Nhanh</h2><div id="utilities-list" class="space-y-2 mb-6 max-h-80 overflow-y-auto"></div><form id="add-link-form" class="mt-6 border-t pt-4" data-role-required="admin" style="display: none;"><h3 id="link-form-title" class="text-lg font-semibold mb-2">Thêm Liên kết Mới</h3><input type="hidden" id="link-id"><div class="grid grid-cols-1 md:grid-cols-3 gap-3"><input type="text" id="link-title" placeholder="Tiêu đề (vd: Trang chủ Cisco)" class="p-2 border rounded-md md:col-span-1" required><input type="url" id="link-url" placeholder="URL (vd: https://cisco.com)" class="p-2 border rounded-md md:col-span-1" required><input type="number" id="link-order" placeholder="Thứ tự (vd: 1)" class="p-2 border rounded-md md:col-span-1"></div><div class="mt-3 flex gap-2"><button type="submit" id="link-submit-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Thêm</button><button type="button" id="link-cancel-edit-btn" class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 hidden">Hủy Sửa</button></div></form><div class="mt-6 flex justify-end"><button class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Đóng</button></div></div></div></div>
+
+    <div id="change-password-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4 hidden modal-backdrop"><div class="bg-white rounded-lg shadow-xl w-full max-w-sm"><form id="change-password-form" class="p-6"><h2 id="change-password-title" class="text-2xl font-bold mb-4">Đổi Mật khẩu</h2><p id="change-password-info" class="text-sm text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4 hidden"></p><div class="space-y-4"><input type="password" id="current-password" placeholder="Mật khẩu hiện tại" class="w-full p-2 border rounded-md" required><input type="password" id="new-password-1" placeholder="Mật khẩu mới" class="w-full p-2 border rounded-md" required><input type="password" id="new-password-2" placeholder="Xác nhận mật khẩu mới" class="w-full p-2 border rounded-md" required></div><p id="change-password-error" class="text-red-500 text-sm mt-2 text-center h-4"></p><div class="mt-6 flex justify-end gap-3"><button type="button" id="change-password-cancel-btn" class="cancel-btn bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Hủy</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Lưu thay đổi</button></div></form></div></div>
+
+    <div id="image-zoom-modal" class="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4 hidden">
+        <span id="zoom-close-btn" class="absolute top-4 right-6 text-white text-4xl font-bold cursor-pointer">&times;</span>
+        <img id="zoomed-image" class="max-w-full max-h-full">
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        
+        const API_BASE_URL = `http://${window.location.hostname}:3000`;
+        const TOKEN_KEY = 'currentUserToken_v4_jwt';
+        let columns = [], deviceData = [], deviceTypes = [], users = [], utilityLinks = [];
+        let typeChart, locationChart, ownerChart;
+        let currentSort = { column: 'hostname', direction: 'asc' };
+        let itemToDelete = { id: null, type: null };
+        let fileToRestore = null;
+        let currentUser = null;
+
+        const ui = {  
+            loginScreen: document.getElementById('login-screen'), loginSubmitBtn: document.getElementById('login-submit-btn'),
+            appContainer: document.getElementById('app-container'), tableHeader: document.getElementById('table-header'),
+            tableBody: document.getElementById('device-table-body'), noResults: document.getElementById('no-results'),
+            search: document.getElementById('search'), typeFilter: document.getElementById('typeFilter'), locationFilter: document.getElementById('locationFilter'),
+            deviceModal: document.getElementById('device-modal'), deleteModal: document.getElementById('delete-modal'),
+            columnModal: document.getElementById('column-modal'), userModal: document.getElementById('user-modal'),
+            restoreModal: document.getElementById('restore-modal'), typeModal: document.getElementById('type-modal'),
+            topologyModal: document.getElementById('topology-modal'), auditModal: document.getElementById('audit-modal'), 
+            changePasswordModal: document.getElementById('change-password-modal'),
+            utilitiesModal: document.getElementById('utilities-modal'), deviceForm: document.getElementById('device-form'),
+            deviceFormFields: document.getElementById('device-form-fields'), modalTitle: document.getElementById('modal-title'),
+            deleteModalText: document.getElementById('delete-modal-text'), columnList: document.getElementById('column-list'),
+            addColumnForm: document.getElementById('add-column-form'), userList: document.getElementById('user-list'),
+            addUserForm: document.getElementById('add-user-form'), typeList: document.getElementById('type-list'),
+            addTypeForm: document.getElementById('add-type-form'), auditLogBody: document.getElementById('audit-log-body'),
+            utilitiesList: document.getElementById('utilities-list'), addLinkForm: document.getElementById('add-link-form'),
+            linkFormTitle: document.getElementById('link-form-title'), linkSubmitBtn: document.getElementById('link-submit-btn'),
+            linkCancelEditBtn: document.getElementById('link-cancel-edit-btn'), confirmDeleteBtn: document.getElementById('confirm-delete-btn'),
+            confirmRestoreBtn: document.getElementById('confirm-restore-btn'), restoreInput: document.getElementById('restore-input'),
+            loginError: document.getElementById('login-error'), changePasswordError: document.getElementById('change-password-error')
+        };
+        
+        function parseJwt(t){try{const b=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');const p=decodeURIComponent(atob(b).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));return JSON.parse(p);}catch(e){return null;}}
+        async function apiFetch(e,o={},i=!1){const l=ui.loginSubmitBtn;if(l)l.disabled=!0;const t=sessionStorage.getItem(TOKEN_KEY);if(t){if(!o.headers)o.headers={};o.headers['Authorization']=`Bearer ${t}`;};try{ui.loginError.textContent='';const r=await fetch(`${API_BASE_URL}${e}`,o);if(i){if(!r.ok)throw new Error(`Lỗi ${r.status}`);return await r.blob();}if(r.status===204)return null;const d=await r.json().catch(()=>({message:`Lỗi ${r.status}`}));if(!r.ok){if((r.status===401||r.status===403)&&e!=='/login'){alert('Hết hạn/Không hợp lệ.');logout();}throw new Error(d.message||`Lỗi ${r.status}`);}return d;}catch(e){console.error(`Lỗi API ${e}:`,e);const m=e.message.includes('fetch')?'Không thể kết nối.':e.message;if(e==='/login')ui.loginError.textContent=m;else alert(`Lỗi API: ${m}`);throw e;}finally{if(l)l.disabled=!1;}}
+        function checkSession(){const t=sessionStorage.getItem(TOKEN_KEY);if(t){currentUser=parseJwt(t);if(!currentUser||currentUser.exp*1000<Date.now()){logout();return;}initializeApp();}else{ui.loginScreen.style.display='flex';ui.appContainer.style.display='none';}}
+        async function login(u,p){try{const d=await apiFetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(d.status==='success'&&d.token){sessionStorage.setItem(TOKEN_KEY,d.token);currentUser=parseJwt(d.token);initializeApp();return!0;}}catch(e){/*Handled*/}}
+        function logout(){currentUser=null;sessionStorage.removeItem(TOKEN_KEY);location.reload();}
+        function hasPermission(r){if(!currentUser||currentUser.mustChangePassword)return!1;return r.includes(currentUser.role);}
+        async function initializeApp() {
+            ui.loginScreen.style.display = 'none';
+            ui.appContainer.style.display = 'block';
+            document.getElementById('user-display').textContent = `User: ${currentUser.username} (${currentUser.role})`;
+            document.querySelectorAll('[data-role-required]').forEach(el => {
+                const rs = el.dataset.roleRequired.split(',');
+                el.style.display = hasPermission(rs) ? (el.tagName === 'BUTTON' ? 'inline-block' : 'block') : 'none';
+            });
+            try {
+                const [c, d, t, l] = await Promise.all([apiFetch('/api/columns'), apiFetch('/api/devices'), apiFetch('/api/types'), apiFetch('/api/links')]);
+                columns = c;
+                deviceData = d;
+                deviceTypes = t;
+                utilityLinks = l;
+                refreshUI();
+            } catch (e) { /*Handled*/ }
+            if (currentUser.mustChangePassword) {
+                const info = document.getElementById('change-password-info');
+                const cancelBtn = document.getElementById('change-password-cancel-btn');
+                info.textContent = 'Đây là lần đăng nhập đầu tiên hoặc mật khẩu của bạn đã được reset. Vui lòng đổi mật khẩu để tiếp tục.';
+                info.classList.remove('hidden');
+                cancelBtn.classList.add('hidden');
+                ui.appContainer.style.filter = 'blur(4px)';
+                ui.appContainer.style.pointerEvents = 'none';
+                openModal(ui.changePasswordModal);
+            }
+        }
+        function refreshUI(){renderTableHeader();populateFilters();applyFiltersAndSort();}
+        function renderTableHeader(){const h=document.createElement('tr');columns.forEach(c=>{h.innerHTML+=`<th scope="col" class="px-6 py-3 cursor-pointer" data-sort="${c.key}">${c.label}</th>`;});h.innerHTML+=`<th scope="col" class="px-6 py-3">Hành động</th>`;ui.tableHeader.innerHTML='';ui.tableHeader.appendChild(h);}
+        function populateFilters(){const p=(s,k,l)=>{const c=s.value;s.innerHTML=`<option value="all">Tất cả ${l}</option>`;const v=[...new Set(deviceData.map(d=>d[k]))].filter(Boolean).sort();v.forEach(val=>s.innerHTML+=`<option value="${val}">${val}</option>`);if(v.includes(c))s.value=c;};p(ui.typeFilter,'type','các loại');p(ui.locationFilter,'location','các vị trí');}
+        function renderSummary(data){/*...*/}
+        function renderTable(data){ui.tableBody.innerHTML='';ui.noResults.classList.toggle('hidden',data.length>0);data.forEach(d=>{const r=document.createElement('tr');r.className='bg-white border-b hover:bg-gray-50';let c=columns.map(col=>`<td class="px-6 py-4">${d[col.key]||''}</td>`).join('');const o=d.owner_username===currentUser.username;const a=currentUser.role==='admin';const e=hasPermission(['admin','editor']);let b='';if(e){if(o||a){b=`<button class="edit-btn text-blue-600 hover:text-blue-800" data-id="${d.id}">Sửa</button> <button class="clone-btn text-green-600 hover:text-green-800" data-id="${d.id}">Nhân bản</button> <button class="delete-btn text-red-600 hover:text-red-800" data-id="${d.id}">Xóa</button>`;}else{b=`<span class="text-xs text-gray-500">(Không quyền)</span>`;}}else{b=`<span class="text-xs text-gray-500">(Chỉ xem)</span>`;}c+=`<td class="px-6 py-4 flex gap-2">${b}</td>`;r.innerHTML=c;ui.tableBody.appendChild(r);});}
+        function renderCharts(data){const rc=(cid,k,ct,ia='x')=>{const ctx=document.getElementById(cid)?.getContext('2d');if(!ctx)return;let ci;if(cid==='typeChart')ci=typeChart;else if(cid==='locationChart')ci=locationChart;else if(cid==='ownerChart')ci=ownerChart;if(ci)ci.destroy();if(data.length===0)return;const cs=data.reduce((a,i)=>{const ky=i[k]||'?';a[ky]=(a[ky]||0)+1;return a;},{});ci=new Chart(ctx,{type:ct,data:{labels:Object.keys(cs),datasets:[{data:Object.values(cs),backgroundColor:['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#6366f1','#14b8a6','#f97316'],borderColor:'#f8f9fa',borderWidth:(ct==='doughnut'||ct==='pie')?2:1,borderRadius:ct==='bar'?4:0}]},options:{indexAxis:ia,responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:(ct==='doughnut'||ct==='pie'),position:'bottom'}}}});if(cid==='typeChart')typeChart=ci;else if(cid==='locationChart')locationChart=ci;else if(cid==='ownerChart')ownerChart=ci;};rc('typeChart','type','doughnut');rc('locationChart','location','bar','y');rc('ownerChart','owner','pie');}
+        function applyFiltersAndSort(){const s=ui.search.value.toLowerCase(),t=ui.typeFilter.value,l=ui.locationFilter.value;let f=deviceData.filter(d=>(s===''||columns.some(c=>String(d[c.key]||'').toLowerCase().includes(s)))&&(t==='all'||d.type===t)&&(l==='all'||d.location===l));f.sort((a,b)=>{const va=String(a[currentSort.column]||'').toLowerCase(),vb=String(b[currentSort.column]||'').toLowerCase();if(va<vb)return currentSort.direction==='asc'?-1:1;if(va>vb)return currentSort.direction==='asc'?1:-1;return 0;});renderTable(f);renderSummary(f);renderCharts(f);}
+        
+        function openModal(modal) { console.log('openModal called for:', modal ? modal.id : 'undefined'); if (!modal) { console.error('Modal element is null!'); return; } modal.classList.remove('hidden'); modal.style.setProperty('display', 'flex', 'important'); modal.style.setProperty('opacity', '1', 'important'); let zIndex = '50'; if (modal.id === 'delete-modal') zIndex = '60'; if (modal.id === 'change-password-modal') zIndex = '70'; modal.style.setProperty('z-index', zIndex, 'important'); modal.style.setProperty('position', 'fixed', 'important'); modal.style.setProperty('inset', '0', 'important'); console.log(`Forcing display styles for ${modal.id} with z-index ${zIndex}`); }
+        function closeModal() { console.log('closeModal called'); document.querySelectorAll('.modal-backdrop').forEach(m => { m.classList.add('hidden'); m.style.display = 'none'; console.log('Hiding modal:', m.id); }); ui.appContainer.style.filter = ''; ui.appContainer.style.pointerEvents = 'auto'; }
+
+        function setupEventListeners() {
+            document.getElementById('login-form').addEventListener('submit', (e)=>{e.preventDefault();login(document.getElementById('username').value, document.getElementById('password').value);});
+            document.getElementById('logout-btn').addEventListener('click', logout);
+            ui.tableHeader.addEventListener('click', (e) => { const th = e.target.closest('th'); if (th && th.dataset.sort) { const c = th.dataset.sort; currentSort.direction = (currentSort.column === c && currentSort.direction === 'asc') ? 'desc' : 'asc'; currentSort.column = c; applyFiltersAndSort(); } });
+            
+            
+            function setupDeleteListener(containerElement, itemType, buttonClass, idAttribute) {
+                 if (!containerElement) { console.error(`Container not found for ${itemType} listener.`); return; }
+                 containerElement.addEventListener('click', (event) => {
+                     console.log(`[${itemType} Container Click] Target:`, event.target); 
+                     
+                     const deleteButton = event.target.closest(`.${buttonClass}`); 
+
+                     if (deleteButton) {
+                         console.log(`[${itemType}] Delete button confirmed via closest().`); 
+                         const id = deleteButton.getAttribute(idAttribute);
+                         console.log(`[${itemType}] ID/key to delete: ${id}`); 
+                         itemToDelete = { id, type: itemType };
+                         let itemName = id;
+                         try {  
+                            if (itemType === 'device') itemName = deviceData.find(d => d.id == id)?.hostname || id;
+                            else if (itemType === 'type') itemName = deviceTypes.find(t => t.id == id)?.name || id;
+                            else if (itemType === 'user') itemName = id; 
+                            else if (itemType === 'column') itemName = columns.find(c => c.key === id)?.label || id;
+                            else if (itemType === 'link') itemName = utilityLinks.find(l => l.id == id)?.title || `ID ${id}`;
+                         } catch (e) { console.warn("Could not get item name:", e); }
+
+                         ui.deleteModalText.textContent = `Bạn có chắc chắn muốn xóa ${itemType} "${itemName}" không?`;
+                         console.log(`Closing existing modals before opening delete modal...`); 
+                         closeModal(); 
+                         setTimeout(() => {
+                             console.log(`Attempting to open delete modal (${itemType})... Element:`, ui.deleteModal);
+                             openModal(ui.deleteModal); 
+                         }, 50); 
+                     } else {
+                          if (!event.target.closest('.edit-btn, .rename-col-btn, .role-select, .edit-link-btn')) {
+                                console.log(`[${itemType}] Click target was not a delete button or descendant.`); 
+                          }
+                     }
+                 });
+            }
+
+            
+            ui.tableBody.addEventListener('click', (e) => {
+                 console.log("[tableBody Click] Target:", e.target);
+                 if (e.target.classList.contains('edit-btn')) {
+                     console.log("[tableBody Click] Edit button identified.");
+                     openDeviceModal(deviceData.find(d => d.id == e.target.dataset.id));
+                 } else if (e.target.classList.contains('clone-btn')) {
+                    console.log("[tableBody Click] Clone button identified.");
+                    const deviceToClone = deviceData.find(d => d.id == e.target.dataset.id);
+                    if (deviceToClone) {
+                        const clonedDevice = JSON.parse(JSON.stringify(deviceToClone));
+                        delete clonedDevice.id;
+                        if (clonedDevice.hostname) {
+                            clonedDevice.hostname = `${clonedDevice.hostname}_clone`;
+                        }
+                        openDeviceModal(clonedDevice, true);
+                    }
+                 } else {
+                     console.log("[tableBody Click] Click was not on edit button. Letting delete listener handle if needed.");
+                 }
+            });
+             
+             setupDeleteListener(ui.tableBody, 'device', 'delete-btn', 'data-id');
+
+            
+            setupDeleteListener(ui.userList, 'user', 'delete-user-btn', 'data-username');
+            ui.userList.addEventListener('click', (e) => { if (e.target.classList.contains('role-select')) { const u = e.target.dataset.username; if(!u) return; try { apiFetch(`/api/users/${u}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: e.target.value }) }).then(renderUserManager); } catch (error) { /* Handled */ } } }); // Chỉ xử lý role select
+            setupDeleteListener(ui.columnList, 'column', 'delete-col-btn', 'data-key');
+            ui.columnList.addEventListener('click', (e) => { if (e.target.classList.contains('rename-col-btn')) { const k = e.target.dataset.key; if (!k) return; try { const l = ui.columnList.querySelector(`input[data-key="${k}"]`).value; if (!l) return alert('Tên cột rỗng'); apiFetch(`/api/columns/${k}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: l }) }).then(() => { const c = columns.find(c => c.key === k); if (c) c.label = l; refreshUI(); renderColumnManager(); alert('Đổi tên cột!'); }); } catch(e) { /* Handled */ } }}); // Chỉ xử lý rename
+            setupDeleteListener(ui.typeList, 'type', 'delete-type-btn', 'data-id');
+            setupDeleteListener(ui.utilitiesList, 'link', 'delete-link-btn', 'data-id');
+            ui.utilitiesList.addEventListener('click', (e) => { if (e.target.classList.contains('edit-link-btn')) { (async () => { try { const links = await apiFetch('/api/links'); const link = links.find(l => l.id == e.target.dataset.id); if (link) { document.getElementById('link-id').value = link.id; document.getElementById('link-title').value = link.title; document.getElementById('link-url').value = link.url; document.getElementById('link-order').value = link.display_order; ui.linkFormTitle.textContent = "Sửa Liên kết"; ui.linkSubmitBtn.textContent = "Lưu"; ui.linkCancelEditBtn.classList.remove('hidden'); } } catch (error) { /* Handled */ } })(); }}); // Chỉ xử lý edit
+
+
+            
+            ui.confirmDeleteBtn.addEventListener('click', async () => { /* ... */ 
+                console.log('Confirm delete clicked. Item:', itemToDelete);
+                try {
+                    if (!itemToDelete || itemToDelete.id === null || !itemToDelete.type) { console.error("Invalid itemToDelete:", itemToDelete); return; }
+                    let endpoint = '';
+                    switch (itemToDelete.type) { case 'device': endpoint = `/api/devices/${itemToDelete.id}`; break; case 'user': endpoint = `/api/users/${itemToDelete.id}`; break; case 'column': endpoint = `/api/columns/${itemToDelete.id}`; break; case 'type': endpoint = `/api/types/${itemToDelete.id}`; break; case 'link': endpoint = `/api/links/${itemToDelete.id}`; break; default: throw new Error("Loại xóa lạ"); }
+                    await apiFetch(endpoint, { method: 'DELETE' }); console.log('API delete OK.');
+                    switch (itemToDelete.type) { case 'device': deviceData = deviceData.filter(d => d.id !== parseInt(itemToDelete.id)); refreshUI(); break; case 'user': await renderUserManager(); break; case 'column': columns = columns.filter(c => c.key !== itemToDelete.id); if (currentSort.column === itemToDelete.id) currentSort.column = 'hostname'; deviceData = await apiFetch('/api/devices'); refreshUI(); await renderColumnManager(); break; case 'type': deviceTypes = deviceTypes.filter(t => t.id !== parseInt(itemToDelete.id)); await renderTypeManager(); break; case 'link': utilityLinks = utilityLinks.filter(l => l.id !== parseInt(itemToDelete.id)); await renderUtilitiesModal(); break; }
+                    console.log('UI updated.'); itemToDelete = { id: null, type: null };
+                } catch (error) { console.error("Error confirmDeleteBtn:", error); /* apiFetch alerts */ } 
+                finally { console.log('Closing delete modal final.'); closeModal(); }
+            });
+            
+            
+            document.getElementById('add-device-btn').addEventListener('click', () => openDeviceModal());
+            document.getElementById('manage-columns-btn').addEventListener('click', () => { renderColumnManager(); openModal(ui.columnModal); });
+            document.getElementById('manage-users-btn').addEventListener('click', () => { renderUserManager(); openModal(ui.userModal); });
+            document.getElementById('manage-types-btn').addEventListener('click', () => { renderTypeManager(); openModal(ui.typeModal); });
+            document.getElementById('show-topology-btn').addEventListener('click', () => { renderTopologyModal(); /* openModal called inside */ });
+            document.getElementById('show-audit-btn').addEventListener('click', () => { renderAuditLog(); openModal(ui.auditModal); });
+            document.getElementById('show-utilities-btn').addEventListener('click', () => { renderUtilitiesModal(); openModal(ui.utilitiesModal); });
+            document.getElementById('change-password-btn').addEventListener('click', () => { openChangePasswordModal(); });
+            
+            setupModalFormsAndButtons(); setupBackupRestore();
+            [ui.search, ui.typeFilter, ui.locationFilter].forEach(el => el.addEventListener('input', applyFiltersAndSort));
+
+            const imageZoomModal = document.getElementById('image-zoom-modal');
+            const zoomedImage = document.getElementById('zoomed-image');
+            const zoomCloseBtn = document.getElementById('zoom-close-btn');
+
+            function openZoomModal(src) {
+                zoomedImage.src = src;
+                imageZoomModal.classList.remove('hidden');
+            }
+
+            function closeZoomModal() {
+                imageZoomModal.classList.add('hidden');
+                zoomedImage.src = '';
+            }
+
+            document.getElementById('logical-display').addEventListener('click', (e) => {
+                if (e.target.tagName === 'IMG') {
+                    openZoomModal(e.target.src);
+                }
+            });
+
+            document.getElementById('physical-display').addEventListener('click', (e) => {
+                if (e.target.tagName === 'IMG') {
+                    openZoomModal(e.target.src);
+                }
+            });
+
+            zoomCloseBtn.addEventListener('click', closeZoomModal);
+            imageZoomModal.addEventListener('click', (e) => {
+                if (e.target === imageZoomModal) {
+                    closeZoomModal();
+                }
+            });
+        } 
+
+        function setupModalFormsAndButtons() {
+            document.querySelectorAll('.cancel-btn').forEach(btn => btn.addEventListener('click', closeModal));
+            
+            ui.deviceForm.addEventListener('submit', async e => { e.preventDefault(); const id = document.getElementById('device-id').value; const p = {}; ui.deviceFormFields.querySelectorAll('input, textarea, select').forEach(i => { if (i.dataset.key !== 'type' && i.id !== 'device-type-other') p[i.dataset.key] = i.value; }); const s = document.getElementById('device-type-select'); p['type'] = s.value === 'other' ? document.getElementById('device-type-other').value.trim() : s.value; if (!p['type']) delete p['type']; try { if (id) { const u = await apiFetch(`/api/devices/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); const i = deviceData.findIndex(d => d.id == id); deviceData[i] = { ...deviceData[i], ...u }; } else { const n = await apiFetch(`/api/devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); deviceData.push(n); } refreshUI(); closeModal(); } catch (e) { /* Handled */ } });
+            
+            ui.addColumnForm.addEventListener('submit', async (e) => { e.preventDefault(); const l = document.getElementById('new-column-name'), k = document.getElementById('new-column-key'); const nl = l.value.trim(); let nk = k.value.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''); if (!nl || !nk) return alert('Nhập Tên cột và Key'); try { await apiFetch('/api/columns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: nk, label: nl }) }); columns.push({ key: nk, label: nl }); refreshUI(); await renderColumnManager(); l.value = ''; k.value = ''; } catch(e) { /* Handled */ } });
+            
+            ui.addUserForm.addEventListener('submit', async (e) => { e.preventDefault(); try { await apiFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('new-username').value, password: document.getElementById('new-password').value, role: document.getElementById('new-user-role').value }) }); ui.addUserForm.reset(); await renderUserManager(); } catch (e) { /* Handled */ } });
+            
+            ui.addTypeForm.addEventListener('submit', async (e) => { e.preventDefault(); const n = document.getElementById('new-type-name'); try { const nt = await apiFetch('/api/types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n.value }) }); deviceTypes.push(nt); await renderTypeManager(); n.value = ''; } catch (e) { /* Handled */ } });
+            
+            
+            document.getElementById('topology-tab-nav').addEventListener('click', (e) => {
+                 console.log("Topology tab nav clicked:", e.target); 
+                 if (e.target.classList.contains('tab-btn')) {
+                    const tab = e.target.dataset.tab; console.log("Switching to tab:", tab); 
+                    const modal = ui.topologyModal; if (!modal) { console.error("Topology modal not found!"); return; }
+                    modal.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                    modal.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    e.target.classList.add('active'); const tabContent = modal.querySelector(`#${tab}-tab`);
+                    if (tabContent) { tabContent.classList.add('active'); console.log("Tab content activated:", tabContent.id); } // DEBUG
+                    else { console.error("Could not find tab content for:", tab); }
+                 }
+            });
+            document.getElementById('logical-upload-btn').addEventListener('click', () => uploadTopology('logical')); 
+            document.getElementById('physical-upload-btn').addEventListener('click', () => uploadTopology('physical'));
+
+            document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                ui.changePasswordError.textContent = '';
+                const currentPassword = document.getElementById('current-password').value;
+                const newPassword1 = document.getElementById('new-password-1').value;
+                const newPassword2 = document.getElementById('new-password-2').value;
+                if (newPassword1 !== newPassword2) { ui.changePasswordError.textContent = 'Mật khẩu mới không khớp.'; return; }
+                if (newPassword1.length < 4) { ui.changePasswordError.textContent = 'Mật khẩu mới phải có ít nhất 4 ký tự.'; return; }
+                try {
+                    const result = await apiFetch('/api/user/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword: newPassword1 }) });
+                    alert(result.message + ' Vui lòng đăng nhập lại.'); logout();
+                } catch (error) { ui.changePasswordError.textContent = error.message; }
+            });
+            
+            ui.addLinkForm.addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('link-id').value; const p = { title: document.getElementById('link-title').value, url: document.getElementById('link-url').value, display_order: document.getElementById('link-order').value || 0 }; try { if (id) { await apiFetch(`/api/links/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); } else { await apiFetch('/api/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); } resetLinkForm(); await renderUtilitiesModal(); } catch (e) { /* Handled */ } });
+            ui.linkCancelEditBtn.addEventListener('click', resetLinkForm);
+        }
+        function resetLinkForm() { ui.addLinkForm.reset(); document.getElementById('link-id').value = ''; ui.linkFormTitle.textContent = "Thêm Liên kết Mới"; ui.linkSubmitBtn.textContent = "Thêm"; ui.linkCancelEditBtn.classList.add('hidden'); }
+        async function uploadTopology(type) { const i = document.getElementById(`${type}-upload-input`); const f = i.files[0]; if (!f) return alert('Chọn file ảnh.'); const fd = new FormData(); fd.append('topology_image', f); try { await apiFetch(`/api/topology/${type}`, { method: 'POST', body: fd }); alert('Tải lên OK!'); await renderTopologyModal(); } catch (e) { /* Handled by apiFetch */ } }
+        
+        
+        function openChangePasswordModal() {
+            document.getElementById('change-password-form').reset();
+            ui.changePasswordError.textContent = '';
+            const info = document.getElementById('change-password-info');
+            const cancelBtn = document.getElementById('change-password-cancel-btn');
+            info.classList.add('hidden');
+            cancelBtn.classList.remove('hidden');
+            openModal(ui.changePasswordModal);
+        }
+        function openDeviceModal(device = null, isClone = false) { ui.deviceForm.reset(); ui.deviceFormFields.innerHTML = ''; columns.forEach(col => { const isTA = col.key === 'description'; if (col.key === 'type') { let opts = deviceTypes.map(t => `<option value="${t.name}">${t.name}</option>`).join('') + `<option value="other">Khác...</option>`; ui.deviceFormFields.innerHTML += `<div class="md:col-span-1"><label for="device-type-select" class="block mb-1 text-sm font-medium">Loại</label><select id="device-type-select" data-key="type" class="w-full p-2 border rounded-md"><option value="">-- Chọn loại --</option>${opts}</select></div><div class="md:col-span-1"><label for="device-type-other" class="block mb-1 text-sm font-medium">Loại khác</label><input type="text" id="device-type-other" class="w-full p-2 border rounded-md" disabled></div>`; } else { ui.deviceFormFields.innerHTML += `<div class="${isTA?'md:col-span-2':'md:col-span-1'}"><label for="device-${col.key}" class="b mb-1 text-sm fm">${col.label}</label>${isTA?`<textarea id="device-${col.key}" data-key="${col.key}" rows="3" class="w-full p-2 border rounded-md"></textarea>`:`<input type="text" id="device-${col.key}" data-key="${col.key}" class="w-full p-2 border rounded-md" ${col.key==='hostname'?'required':''}>`}</div>`; } }); const sel = document.getElementById('device-type-select'), oth = document.getElementById('device-type-other'); sel.addEventListener('change', () => { oth.disabled = (sel.value !== 'other'); if (!oth.disabled) oth.focus(); }); if (device) { if (isClone) { ui.modalTitle.textContent = 'Nhân bản Thiết bị'; document.getElementById('device-id').value = ''; } else { ui.modalTitle.textContent = 'Sửa Thiết bị'; document.getElementById('device-id').value = device.id; } columns.forEach(col => { const inp = document.getElementById(`device-${col.key}`); if (col.key === 'type') { const v = device.type||''; if (deviceTypes.some(t => t.name === v)) { sel.value = v; oth.disabled = true; } else if (v) { sel.value = 'other'; oth.value = v; oth.disabled = false; } else { sel.value = ''; oth.disabled = true; } } else if (inp) { inp.value = device[col.key] || ''; } }); } else { ui.modalTitle.textContent = 'Thêm Thiết bị Mới'; document.getElementById('device-id').value = ''; } openModal(ui.deviceModal); }
+        async function renderColumnManager() { try { columns = await apiFetch('/api/columns'); ui.columnList.innerHTML = ''; const pk = ['hostname','type','location','ip','owner','description']; columns.forEach(c => { const ip = pk.includes(c.key); ui.columnList.innerHTML += `<div class="flex items-center gap-2 p-2 border rounded"><input type="text" value="${c.label}" data-key="${c.key}" class="flex-grow p-1 border rounded" ${ip?'disabled title="Cột hệ thống"':''}><button data-key="${c.key}" class="rename-col-btn text-blue-600 hover:text-blue-800 ${ip?'hidden':''}">Lưu</button><button data-key="${c.key}" class="delete-col-btn text-red-600 hover:text-red-800 ${ip?'hidden':''}">Xóa</button></div>`; }); } catch (e) { ui.columnList.innerHTML = '<p class="text-red-500">Lỗi tải cột.</p>'; } }
+        async function renderUserManager() { try { users = await apiFetch('/api/users'); ui.userList.innerHTML = ''; users.forEach(u => { const icu = u.username === currentUser.username; const cm = !icu; ui.userList.innerHTML += `<tr class="border-b"><td class="p-2 fm">${u.username} ${icu?'(Bạn)':''}</td><td class="p-2"><select class="role-select p-1 border rounded" data-username="${u.username}" ${!cm?'disabled':''}><option value="viewer" ${u.role==='viewer'?'selected':''}>Viewer</option><option value="editor" ${u.role==='editor'?'selected':''}>Editor</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></td><td class="p-2"><button class="delete-user-btn text-red-600 hover:text-red-800" data-username="${u.username}" ${!cm?'disabled':''}>Xóa</button></td></tr>`; }); } catch (e) { ui.userList.innerHTML = '<tr><td colspan="3" class="text-red-500 p-2">Lỗi tải người dùng.</td></tr>'; } }
+        async function renderTypeManager() { try { deviceTypes = await apiFetch('/api/types'); ui.typeList.innerHTML = ''; deviceTypes.forEach(t => { ui.typeList.innerHTML += `<tr class="border-b"><td class="p-2 fm">${t.name}</td><td class="p-2"><button class="delete-type-btn text-red-600 hover:text-red-800" data-id="${t.id}">Xóa</button></td></tr>`; }); } catch (e) { ui.typeList.innerHTML = '<tr><td colspan="2" class="text-red-500 p-2">Lỗi tải loại T.Bị.</td></tr>'; } }
+        async function renderTopologyModal() { try { const data = await apiFetch('/api/topology'); console.log("[Render Topology] Data:", data); openModal(ui.topologyModal); setTimeout(() => { console.log("[Render Topology] Finding elements after 150ms timeout."); const lD = document.getElementById('logical-display'), lP = document.getElementById('logical-placeholder'); const pD = document.getElementById('physical-display'), pP = document.getElementById('physical-placeholder'); console.log("[Render Topology] Elements:", { lD, pD }); if (lD && lP) displayFile('logical', data.logical, lD, lP); else console.error("Logical elements NOT found!"); if (pD && pP) displayFile('physical', data.physical, pD, pP); else console.error("Physical elements NOT found!"); }, 150); } catch (error) { console.error("Error rendering topology:", error); } }
+        function displayFile(type, url, displayEl, placeholderEl) { console.log(`[Display File] Type: ${type}, URL: ${url}`); if (!displayEl || !placeholderEl) { console.error(`[Display File] Missing elements for ${type}`); return; } console.log(`[Display File] Elements received for ${type}:`, displayEl, placeholderEl); displayEl.innerHTML = ''; if (url) { placeholderEl.style.display = 'none'; let isImage = url.match(/\.(jpe?g|gif|png|svg|webp)(\?.*)?$/i); console.log(`[Display File] Is image detected for ${type}?`, isImage); if (isImage) { console.log(`[Display File] Creating IMG element for ${type}.`); const img = document.createElement('img'); img.src = url; img.alt = `Sơ đồ ${type}`; img.className = "w-full h-auto object-contain mx-auto"; img.style.maxHeight = '500px'; img.onerror = () => { console.error(`[Display File] Error loading image: ${url}`); displayEl.innerHTML = `<p class="p-10 text-center text-red-500">Lỗi tải ảnh.</p>`; }; displayEl.appendChild(img); console.log(`[Display File] Image appended for ${type}.`); } else { console.log(`[Display File] Unsupported format for ${type}: ${url}`); displayEl.innerHTML = `<p class="p-10 text-center text-red-500">Chỉ hỗ trợ file ảnh.</p>`; } } else { console.log(`[Display File] No URL for ${type}`); displayEl.innerHTML = ''; placeholderEl.style.display = 'block'; } }
+        async function renderAuditLog() { try { const l = await apiFetch('/api/audit-logs'); ui.auditLogBody.innerHTML = ''; l.forEach(log => { ui.auditLogBody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2">${log.timestamp}</td><td class="p-2 fm">${log.username}</td><td class="p-2">${log.action}</td><td class="p-2">${log.target_type}</td><td class="p-2">${log.target_id}</td></tr>`; }); } catch (e) { ui.auditLogBody.innerHTML = '<tr><td colspan="5" class="text-red-500 p-2">Lỗi tải nhật ký.</td></tr>'; } }
+        async function renderUtilitiesModal() { try { utilityLinks = await apiFetch('/api/links'); ui.utilitiesList.innerHTML = ''; if (utilityLinks.length === 0) { ui.utilitiesList.innerHTML = '<p class="text-gray-500 text-center">Chưa có liên kết.</p>'; } utilityLinks.forEach(l => { let b = ''; if (currentUser.role === 'admin') { b = `<div class="utility-link-actions"><button class="edit-link-btn text-sm text-blue-600 hover:underline" data-id="${l.id}">Sửa</button><button class="delete-link-btn text-sm text-red-600 hover:underline" data-id="${l.id}">Xóa</button></div>`; } ui.utilitiesList.innerHTML += `<div class="utility-link"><a href="${l.url}" target="_blank" title="${l.url}">${l.title}</a>${b}</div>`; }); ui.addLinkForm.style.display = currentUser.role==='admin' ? 'block' : 'none'; resetLinkForm(); } catch (e) { ui.utilitiesList.innerHTML = '<p class="text-red-500 text-center">Lỗi tải liên kết.</p>'; } }
+        function setupBackupRestore() { document.getElementById('backup-btn').addEventListener('click', async () => { try { const b = await apiFetch('/api/backup', {}, true); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `nw_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(u); } catch (e) { /* Handled */ } }); document.getElementById('restore-btn').addEventListener('click', () => ui.restoreInput.click()); ui.restoreInput.addEventListener('change', function(e) { const f = e.target.files[0]; if (!f) return; fileToRestore = f; openModal(ui.restoreModal); e.target.value = ''; }); ui.confirmRestoreBtn.addEventListener('click', async () => { if (!fileToRestore) return; const r = new FileReader(); r.onload = async function(e) {
+            try {
+                const d = JSON.parse(e.target.result);
+                if (!d.columns || !d.devices || !d.users) {
+                    return alert('File JSON không hợp lệ.');
+                }
+                await apiFetch('/api/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(d)
+                });
+
+                // Reset filters to default before refreshing the UI
+                ui.search.value = '';
+                ui.typeFilter.value = 'all';
+                ui.locationFilter.value = 'all';
+
+                // Instead of reloading, fetch all data again and refresh the UI
+                const [c, newDeviceData, t, l] = await Promise.all([
+                    apiFetch('/api/columns'),
+                    apiFetch('/api/devices'),
+                    apiFetch('/api/types'),
+                    apiFetch('/api/links')
+                ]);
+                columns = c;
+                deviceData = newDeviceData;
+                deviceTypes = t;
+                utilityLinks = l;
+                
+                refreshUI(); // This will re-render the table, filters, etc.
+                
+                alert('Phục hồi thành công! Dữ liệu đã được làm mới.');
+
+            } catch (err) {
+                // The apiFetch function already shows an alert on error.
+                console.error("Lỗi trong quá trình phục hồi:", err);
+            } finally {
+                fileToRestore = null;
+                closeModal();
+            }
+        }; r.readAsText(fileToRestore); }); }
+        
+        checkSession(); setupEventListeners();
+        console.log("Initial setup complete."); 
+    });
+    </script>
+</body>
+</html>
